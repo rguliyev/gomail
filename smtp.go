@@ -8,7 +8,6 @@ import (
 	"net/smtp"
 	"strings"
 	"time"
-	"os"
 	"syscall"
 )
 
@@ -70,27 +69,22 @@ func (d *Dialer) Dial() (SendCloser, error) {
 	)
 	if d.Dialer != nil {
 		conn, err = d.Dialer.Dial("tcp", addr(d.Host, d.Port))
-		tcpconn, ok := conn.(*net.TCPConn)
-		if !ok {
-			fmt.Println("error in casting *net.Conn to *net.TCPConn!")
-			os.Exit(1)
-		}
-		file, err := tcpconn.File()
 		if err != nil {
 			return nil, err
 		}
-		for _, opt := range d.SocketOpts {
-			err = syscall.SetsockoptInt(int(file.Fd()), syscall.SOL_SOCKET, opt[0], opt[1])
-			file.Close()
-			if err != nil {
-				return nil, err
+		if tcpconn, ok := conn.(*net.TCPConn); ok {
+			if file, err := tcpconn.File(); err == nil {
+				for _, opt := range d.SocketOpts {
+					syscall.SetsockoptInt(int(file.Fd()), syscall.SOL_SOCKET, opt[0], opt[1])
+					file.Close()
+				}
 			}
 		}
 	} else {
 		conn, err = netDialTimeout("tcp", addr(d.Host, d.Port), 10*time.Second)
-	}
-	if err != nil {
-		return nil, err
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if d.SSL {
